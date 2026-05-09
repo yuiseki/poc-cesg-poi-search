@@ -93,7 +93,7 @@ def build_duckdb(documents_path: str, out_path: str, manifest_path: str | None) 
 
     if manifest_path:
         row = conn.execute(
-            "SELECT source, source_release, MIN(lon), MIN(lat), MAX(lon), MAX(lat) FROM poi_documents"
+            "SELECT ANY_VALUE(source), ANY_VALUE(source_release), MIN(lon), MIN(lat), MAX(lon), MAX(lat) FROM poi_documents"
         ).fetchone()
         source, source_release, xmin, ymin, xmax, ymax = row
         manifest = generate_manifest(

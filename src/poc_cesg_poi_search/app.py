@@ -29,11 +29,14 @@ class ORJSONResponse(JSONResponse):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db(
-        db_path=settings.poi_search_db,
-        asset_url=settings.poi_search_asset_url,
-        local_cache=settings.poi_search_local_cache,
-    )
+    try:
+        init_db(
+            db_path=settings.poi_search_db,
+            asset_url=settings.poi_search_asset_url,
+            local_cache=settings.poi_search_local_cache,
+        )
+    except Exception as e:
+        logger.warning("DuckDB not available at startup: %s — /search and /nearby will return 503", e)
     # Load manifest if accessible
     global _manifest_cache
     try:
@@ -89,7 +92,10 @@ def search(
     if xmin >= xmax or ymin >= ymax:
         raise HTTPException(status_code=400, detail="invalid bbox: min must be less than max")
 
-    conn = get_connection()
+    try:
+        conn = get_connection()
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Search index not available")
     results = search_bbox(conn, q, xmin, ymin, xmax, ymax, limit=limit)
     _serialize_display(results)
     return {"query": q, "count": len(results), "results": results}
@@ -108,7 +114,10 @@ def nearby(
     if not (-180 <= lon <= 180):
         raise HTTPException(status_code=400, detail="lon must be between -180 and 180")
 
-    conn = get_connection()
+    try:
+        conn = get_connection()
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Search index not available")
     results = search_nearby(conn, q, lat, lon, radius_m=radius_m, limit=limit)
     _serialize_display(results)
     return {"query": q, "count": len(results), "results": results}

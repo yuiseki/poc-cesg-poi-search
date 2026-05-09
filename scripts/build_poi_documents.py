@@ -75,8 +75,12 @@ def _extract_category(row: pd.Series) -> tuple[str, str]:
                 return str(cats), str(cats)
         if isinstance(cats, dict):
             cat = cats.get("primary", "") or ""
-            alts = cats.get("alternate", []) or []
-            path = " > ".join([cat] + (alts if isinstance(alts, list) else []))
+            alts = cats.get("alternate", None)
+            try:
+                alts = list(alts) if alts is not None else []
+            except Exception:
+                alts = []
+            path = " > ".join([cat] + [str(a) for a in alts if a])
         elif isinstance(cats, list) and cats:
             cat = str(cats[0])
             path = " > ".join(str(c) for c in cats)
@@ -97,6 +101,11 @@ def _extract_address(row: pd.Series) -> str:
                     val = json.loads(val)
                 except Exception:
                     return str(val)
+            # numpy array or list
+            try:
+                val = list(val)
+            except Exception:
+                pass
             if isinstance(val, list) and val:
                 addr = val[0]
                 if isinstance(addr, dict):
@@ -111,8 +120,27 @@ def _extract_address(row: pd.Series) -> str:
 
 
 def _extract_lonlat(row: pd.Series) -> tuple[float | None, float | None]:
+    # Overture GeoParquet: bbox column is a struct {xmin,ymin,xmax,ymax}
+    if "bbox" in row.index and row.get("bbox") is not None:
+        b = row["bbox"]
+        if isinstance(b, dict):
+            try:
+                lon = (b["xmin"] + b["xmax"]) / 2.0
+                lat = (b["ymin"] + b["ymax"]) / 2.0
+                return float(lon), float(lat)
+            except Exception:
+                pass
+
     if "geometry" in row.index and row.get("geometry") is not None:
         geom = row["geometry"]
+        # WKB bytes (Overture GeoParquet)
+        if isinstance(geom, (bytes, bytearray)):
+            try:
+                from shapely import wkb
+                g = wkb.loads(bytes(geom))
+                return g.x, g.y
+            except Exception:
+                pass
         if isinstance(geom, str):
             try:
                 geom = json.loads(geom)
