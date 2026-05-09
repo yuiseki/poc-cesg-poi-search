@@ -133,7 +133,7 @@ curl http://localhost:8080/healthz
 ## Docker build and run
 
 ```bash
-docker build -t poc-cesg-poi-search .
+docker build -f docker/Dockerfile -t poc-cesg-poi-search .
 
 docker run -p 8080:8080 \
   -e POI_SEARCH_ASSET_URL=https://z.yuiseki.net/static/cesg/tokyo/poi-search.duckdb \
@@ -143,7 +143,7 @@ docker run -p 8080:8080 \
 ## Knative deploy
 
 ```bash
-kubectl apply -f deploy/knative-service.yaml
+kubectl apply -f k8s/ksvc.yaml
 
 # Check status
 kubectl get ksvc poc-cesg-poi-search
