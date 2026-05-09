@@ -1,0 +1,26 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: poc-cesg-poi-search
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: ghcr.io/yuiseki/poc-cesg-poi-search:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POI_SEARCH_ASSET_URL
+              value: "https://z.yuiseki.net/static/cesg/tokyo/poi-search.duckdb"
+            - name: POI_SEARCH_MANIFEST_URL
+              value: "https://z.yuiseki.net/static/cesg/tokyo/poi-search-manifest.json"
+            - name: POI_SEARCH_LOCAL_CACHE
+              value: "/tmp/poi-search.duckdb"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"

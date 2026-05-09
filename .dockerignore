@@ -1,0 +1,12 @@
+data/
+dist/
+.git/
+__pycache__/
+*.pyc
+*.duckdb
+*.parquet
+tests/
+scripts/
+docs/
+deploy/
+.venv/

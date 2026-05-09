@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CESG POI Search</title>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #header {
+      padding: 10px 16px;
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    #header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #88aaff;
+      white-space: nowrap;
+    }
+    #header input[type="text"] {
+      background: #222;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #eee;
+      padding: 5px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    #header input[type="text"]:focus { border-color: #88aaff; }
+    #q { width: 200px; }
+    #api-base { width: 220px; }
+    button {
+      background: #2a2a4a;
+      border: 1px solid #445;
+      border-radius: 4px;
+      color: #aac;
+      padding: 5px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #3a3a6a; color: #ccf; }
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #map { flex: 1; }
+    #sidebar {
+      width: 300px;
+      background: #141414;
+      border-left: 1px solid #2a2a2a;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #sidebar-header {
+      padding: 10px 12px;
+      background: #1c1c1c;
+      border-bottom: 1px solid #2a2a2a;
+      font-size: 12px;
+      color: #888;
+    }
+    #results {
+      overflow-y: auto;
+      flex: 1;
+    }
+    .result-item {
+      padding: 10px 12px;
+      border-bottom: 1px solid #222;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .result-item:hover { background: #1e1e2e; }
+    .result-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #cce;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .result-cat {
+      font-size: 11px;
+      color: #778;
+      margin-top: 2px;
+    }
+    .result-score {
+      font-size: 10px;
+      color: #556;
+      margin-top: 2px;
+    }
+    .result-dist {
+      font-size: 10px;
+      color: #88aa88;
+    }
+    #status {
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #668;
+      background: #111;
+      border-top: 1px solid #222;
+    }
+    .maplibregl-popup-content {
+      background: #1a1a2a;
+      color: #cce;
+      border: 1px solid #334;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+      max-width: 220px;
+    }
+    .maplibregl-popup-content strong { display: block; margin-bottom: 4px; }
+    .maplibregl-popup-content span { font-size: 11px; color: #889; }
+    .maplibregl-popup-tip { border-top-color: #334 !important; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>CESG POI Search</h1>
+    <input type="text" id="api-base" placeholder="API base URL" value="http://localhost:8080" title="API base URL" />
+    <input type="text" id="q" placeholder="Search query (e.g. カフェ)" value="カフェ" />
+    <button id="btn-bbox" title="Search within current map view">BBox Search</button>
+    <button id="btn-nearby" title="Search near map center">Nearby Search</button>
+  </div>
+  <div id="main">
+    <div id="map"></div>
+    <div id="sidebar">
+      <div id="sidebar-header">Results</div>
+      <div id="results"></div>
+      <div id="status">Ready</div>
+    </div>
+  </div>
+
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tile.yuiseki.net/styles/osm-fiord/style.json',
+      center: [139.767, 35.681],
+      zoom: 12,
+    });
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    const markers = [];
+
+    function clearMarkers() {
+      markers.forEach(m => m.remove());
+      markers.length = 0;
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    function renderResults(data) {
+      clearMarkers();
+      const results = data.results || [];
+      const container = document.getElementById('results');
+      const header = document.getElementById('sidebar-header');
+      header.textContent = `Results (${results.length})`;
+      container.innerHTML = '';
+
+      if (!results.length) {
+        container.innerHTML = '<div style="padding:12px;color:#556;font-size:12px;">No results found.</div>';
+        return;
+      }
+
+      results.forEach((r, i) => {
+        const name = r.name || (r.display && r.display.name) || '(no name)';
+        const cat = r.category || (r.display && r.display.category) || '';
+        const score = r.score ? r.score.toFixed(3) : '';
+        const dist = r.distance_m != null ? `${r.distance_m} m away` : '';
+
+        const item = document.createElement('div');
+        item.className = 'result-item';
+        item.innerHTML = `
+          <div class="result-name" title="${name}">${i + 1}. ${name}</div>
+          ${cat ? `<div class="result-cat">${cat}</div>` : ''}
+          <div class="result-score">score: ${score}${dist ? ' &nbsp; ' + dist : ''}</div>
+        `;
+
+        const popup = new maplibregl.Popup({ offset: 25, closeButton: true })
+          .setHTML(`<strong>${name}</strong><span>${cat}</span>`);
+
+        const el = document.createElement('div');
+        el.style.cssText = 'width:14px;height:14px;background:#88aaff;border-radius:50%;border:2px solid #223;cursor:pointer;';
+
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([r.lon, r.lat])
+          .setPopup(popup)
+          .addTo(map);
+        markers.push(marker);
+
+        item.addEventListener('click', () => {
+          map.flyTo({ center: [r.lon, r.lat], zoom: 16, duration: 600 });
+          marker.togglePopup();
+        });
+
+        container.appendChild(item);
+      });
+
+      setStatus(`Loaded ${results.length} result(s) for "${data.query}"`);
+    }
+
+    function getApiBase() {
+      return document.getElementById('api-base').value.replace(/\/$/, '');
+    }
+
+    function getQuery() {
+      return document.getElementById('q').value.trim();
+    }
+
+    async function bboxSearch() {
+      const q = getQuery();
+      if (!q) { setStatus('Please enter a query.'); return; }
+      const bounds = map.getBounds();
+      const bbox = [
+        bounds.getWest().toFixed(6),
+        bounds.getSouth().toFixed(6),
+        bounds.getEast().toFixed(6),
+        bounds.getNorth().toFixed(6),
+      ].join(',');
+      const url = `${getApiBase()}/search?q=${encodeURIComponent(q)}&bbox=${bbox}&limit=50`;
+      setStatus('Searching...');
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderResults(data);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`);
+      }
+    }
+
+    async function nearbySearch() {
+      const q = getQuery();
+      if (!q) { setStatus('Please enter a query.'); return; }
+      const center = map.getCenter();
+      const url = `${getApiBase()}/nearby?q=${encodeURIComponent(q)}&lat=${center.lat.toFixed(6)}&lon=${center.lng.toFixed(6)}&radius_m=1000&limit=50`;
+      setStatus('Searching...');
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderResults(data);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`);
+      }
+    }
+
+    document.getElementById('btn-bbox').addEventListener('click', bboxSearch);
+    document.getElementById('btn-nearby').addEventListener('click', nearbySearch);
+    document.getElementById('q').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') bboxSearch();
+    });
+  </script>
+</body>
+</html>

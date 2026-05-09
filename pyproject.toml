@@ -1,0 +1,34 @@
+[project]
+name = "poc-cesg-poi-search"
+version = "0.1.0"
+description = "CESG POI search asset: portable DuckDB FTS over Overture Places, served via FastAPI on Knative"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "duckdb>=1.2.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "pyarrow>=16.0",
+    "pandas>=2.0",
+    "orjson>=3.10",
+    "httpx>=0.27",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+lindera = ["lindera-python>=0.38.0"]
+dev = ["ruff", "mypy"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/poc_cesg_poi_search"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

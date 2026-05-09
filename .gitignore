@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+dist/
+.eggs/
+*.egg-info/
+
+# Generated data assets (never commit)
+data/
+*.duckdb
+*.parquet
+
+# Env
+.env
+
+# IDE
+.vscode/
+.idea/

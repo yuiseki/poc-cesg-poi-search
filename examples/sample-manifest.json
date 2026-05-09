@@ -1,0 +1,19 @@
+{
+  "profile": "cesg-poi-search/0.1",
+  "runtime": "duckdb+fts",
+  "source": "overture-places",
+  "source_release": "2026-04-15.0",
+  "bbox": [139.55, 35.50, 139.95, 35.85],
+  "count": 12345,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "tokenization": {
+    "normalization": ["unicode_nfkc", "lowercase"],
+    "morph": "lindera",
+    "ngrams": [2, 3],
+    "unigram": false
+  },
+  "assets": {
+    "documents": "poi-documents.parquet",
+    "duckdb": "poi-search.duckdb"
+  }
+}

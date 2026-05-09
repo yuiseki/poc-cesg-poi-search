@@ -1,0 +1,6 @@
+[
+  { "description": "cafe search in central Tokyo", "q": "カフェ", "bbox": "139.55,35.50,139.95,35.85" },
+  { "description": "convenience store nearby Shinjuku", "q": "コンビニ", "lat": 35.6896, "lon": 139.6917, "radius_m": 500 },
+  { "description": "hospital nearby", "q": "hospital", "lat": 35.681, "lon": 139.767, "radius_m": 2000 },
+  { "description": "sushi restaurant", "q": "寿司", "bbox": "139.7,35.65,139.8,35.72" }
+]
