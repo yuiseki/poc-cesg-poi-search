@@ -278,6 +278,8 @@
     document.getElementById('q').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') bboxSearch();
     });
+
+    map.once('load', () => bboxSearch());
   </script>
 </body>
 </html>
