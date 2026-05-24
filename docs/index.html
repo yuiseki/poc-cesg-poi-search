@@ -135,7 +135,7 @@
 <body>
   <div id="header">
     <h1>CESG POI Search</h1>
-    <input type="text" id="api-base" placeholder="API base URL" value="https://poc-cesg-poi-search.yuiseki.com" title="API base URL" />
+    <input type="text" id="api-base" placeholder="API base URL" title="API base URL" />
     <input type="text" id="q" placeholder="Search query (e.g. カフェ)" value="カフェ" />
     <button id="btn-bbox" title="Search within current map view">BBox Search</button>
     <button id="btn-nearby" title="Search near map center">Nearby Search</button>
@@ -150,6 +150,14 @@
   </div>
 
   <script>
+    function defaultApiBase(hostname) {
+      if (hostname === 'yuiseki.github.io') return 'https://poc-cesg-poi-search.yuiseki.com';
+      if (hostname === 'www.yuiseki.dev')   return 'https://poc-cesg-poi-search.yuiseki.dev';
+      return 'https://poc-cesg-poi-search.yuiseki.dev';
+    }
+    document.getElementById('api-base').value =
+      new URLSearchParams(location.search).get('api') || defaultApiBase(location.hostname);
+
     const map = new maplibregl.Map({
       container: 'map',
       style: 'https://tile.yuiseki.net/styles/osm-fiord/style.json',
