@@ -118,6 +118,16 @@
       background: #111;
       border-top: 1px solid #222;
     }
+    #spinner {
+      display: none;
+      margin: 32px auto;
+      width: 28px; height: 28px;
+      border: 3px solid #333;
+      border-top-color: #88aaff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .maplibregl-popup-content {
       background: #1a1a2a;
       color: #cce;
@@ -144,6 +154,7 @@
     <div id="map"></div>
     <div id="sidebar">
       <div id="sidebar-header">Results</div>
+      <div id="spinner"></div>
       <div id="results"></div>
       <div id="status">Ready</div>
     </div>
@@ -175,6 +186,11 @@
 
     function setStatus(msg) {
       document.getElementById('status').textContent = msg;
+    }
+
+    function setLoading(on) {
+      document.getElementById('spinner').style.display = on ? 'block' : 'none';
+      if (on) document.getElementById('results').innerHTML = '';
     }
 
     function renderResults(data) {
@@ -247,6 +263,7 @@
       ].join(',');
       const url = `${getApiBase()}/search?q=${encodeURIComponent(q)}&bbox=${bbox}&limit=50`;
       setStatus('Searching...');
+      setLoading(true);
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -254,6 +271,8 @@
         renderResults(data);
       } catch (err) {
         setStatus(`Error: ${err.message}`);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -263,6 +282,7 @@
       const center = map.getCenter();
       const url = `${getApiBase()}/nearby?q=${encodeURIComponent(q)}&lat=${center.lat.toFixed(6)}&lon=${center.lng.toFixed(6)}&radius_m=1000&limit=50`;
       setStatus('Searching...');
+      setLoading(true);
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -270,6 +290,8 @@
         renderResults(data);
       } catch (err) {
         setStatus(`Error: ${err.message}`);
+      } finally {
+        setLoading(false);
       }
     }
 
