@@ -148,6 +148,14 @@ docker run -p 8080:8080 \
 
 ## Knative deploy
 
+### `z` cluster (`.com`, local image import)
+
+```bash
+kubectl apply -f k8s/ksvc-z.yaml
+```
+
+### `pi5` cluster (`.dev`, LAN registry)
+
 ```bash
 kubectl apply -f k8s/ksvc.yaml
 
