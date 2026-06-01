@@ -66,9 +66,37 @@ app.add_middleware(
 )
 
 
+def _health_payload() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "status": "ok",
+        "service": "poc-cesg-poi-search",
+    }
+
+
+@app.get("/")
+def root():
+    return {
+        **_health_payload(),
+        "manifest_loaded": bool(_manifest_cache),
+        "endpoints": {
+            "health": "/health",
+            "healthz": "/healthz",
+            "metadata": "/metadata",
+            "search": "/search",
+            "nearby": "/nearby",
+        },
+    }
+
+
+@app.get("/health")
+def health():
+    return _health_payload()
+
+
 @app.get("/healthz")
 def healthz():
-    return {"status": "ok"}
+    return _health_payload()
 
 
 @app.get("/metadata")

@@ -55,6 +55,8 @@ Static hosting (z.yuiseki.net/static/cesg/<area>/)
         |
         v
 FastAPI server (app.py)        <-- downloads on cold start
+   /          (service info)
+   /health    (health alias)
    /search  (bbox)
    /nearby  (radius)
    /metadata
@@ -120,6 +122,10 @@ POI_SEARCH_ASSET_URL=https://z.yuiseki.net/static/cesg/tokyo/poi-search.duckdb \
 ### Example queries
 
 ```bash
+# Service info / health
+curl http://localhost:8080/
+curl http://localhost:8080/health
+
 # BBox search
 curl "http://localhost:8080/search?q=カフェ&bbox=139.55,35.50,139.95,35.85"
 

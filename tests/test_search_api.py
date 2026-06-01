@@ -88,6 +88,25 @@ def test_healthz(client):
     r = client.get("/healthz")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+    assert r.json()["service"] == "poc-cesg-poi-search"
+
+
+def test_health_alias(client):
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+    assert r.json()["service"] == "poc-cesg-poi-search"
+
+
+def test_root_returns_service_info(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "ok"
+    assert data["service"] == "poc-cesg-poi-search"
+    assert "endpoints" in data
+    assert data["endpoints"]["health"] == "/health"
+    assert data["endpoints"]["healthz"] == "/healthz"
 
 
 def test_search_returns_json(client):
