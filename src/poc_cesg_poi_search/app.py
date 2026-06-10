@@ -74,6 +74,37 @@ def _health_payload() -> dict[str, Any]:
     }
 
 
+def _db_ready() -> bool:
+    try:
+        get_connection()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _healthz_payload() -> tuple[dict[str, Any], int]:
+    db_ready = _db_ready()
+    if db_ready:
+        return (
+            {
+                **_health_payload(),
+                "db_ready": True,
+                "manifest_loaded": bool(_manifest_cache),
+            },
+            200,
+        )
+    return (
+        {
+            "ok": False,
+            "status": "ng",
+            "service": "poc-cesg-poi-search",
+            "db_ready": False,
+            "manifest_loaded": bool(_manifest_cache),
+        },
+        503,
+    )
+
+
 @app.get("/")
 def root():
     return {
@@ -96,7 +127,8 @@ def health():
 
 @app.get("/healthz")
 def healthz():
-    return _health_payload()
+    payload, status_code = _healthz_payload()
+    return ORJSONResponse(payload, status_code=status_code)
 
 
 @app.get("/metadata")

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from unittest.mock import patch
+
 import pytest
 import duckdb
 from fastapi.testclient import TestClient
@@ -61,7 +63,6 @@ def _make_fixture_db(path: str) -> None:
 @pytest.fixture
 def client():
     import poc_cesg_poi_search.db as db_module
-    from unittest.mock import patch
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = os.path.join(tmpdir, "test.duckdb")
@@ -72,7 +73,11 @@ def client():
         original = db_module._conn
         db_module._conn = conn
 
+        import poc_cesg_poi_search.app as app_module
         from poc_cesg_poi_search.app import app
+
+        original_manifest = app_module._manifest_cache
+        app_module._manifest_cache = {"asset": "ready"}
 
         # Patch init_db to a no-op so the lifespan does not overwrite _conn
         with patch("poc_cesg_poi_search.app.init_db", return_value=None), \
@@ -82,6 +87,7 @@ def client():
 
         conn.close()
         db_module._conn = original
+        app_module._manifest_cache = original_manifest
 
 
 def test_healthz(client):
@@ -89,6 +95,7 @@ def test_healthz(client):
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
     assert r.json()["service"] == "poc-cesg-poi-search"
+    assert r.json()["db_ready"] is True
 
 
 def test_health_alias(client):
@@ -107,6 +114,31 @@ def test_root_returns_service_info(client):
     assert "endpoints" in data
     assert data["endpoints"]["health"] == "/health"
     assert data["endpoints"]["healthz"] == "/healthz"
+
+
+def test_healthz_returns_ng_when_db_unavailable():
+    import poc_cesg_poi_search.db as db_module
+    import poc_cesg_poi_search.app as app_module
+    from poc_cesg_poi_search.app import app
+
+    original_conn = db_module._conn
+    original_manifest = app_module._manifest_cache
+    db_module._conn = None
+    app_module._manifest_cache = {}
+    try:
+        with patch("poc_cesg_poi_search.app.init_db", return_value=None), \
+             patch("poc_cesg_poi_search.app.close_db", return_value=None), \
+             TestClient(app, raise_server_exceptions=False) as client:
+            r = client.get("/healthz")
+        assert r.status_code == 503
+        data = r.json()
+        assert data["ok"] is False
+        assert data["status"] == "ng"
+        assert data["service"] == "poc-cesg-poi-search"
+        assert data["db_ready"] is False
+    finally:
+        db_module._conn = original_conn
+        app_module._manifest_cache = original_manifest
 
 
 def test_search_returns_json(client):
