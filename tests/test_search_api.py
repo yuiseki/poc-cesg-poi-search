@@ -77,10 +77,14 @@ def client():
         from poc_cesg_poi_search.app import app
 
         original_manifest = app_module._manifest_cache
+        original_status = app_module._db_init_status
+        original_error = app_module._db_init_error
         app_module._manifest_cache = {"asset": "ready"}
+        app_module._db_init_status = "ready"
+        app_module._db_init_error = None
 
-        # Patch init_db to a no-op so the lifespan does not overwrite _conn
-        with patch("poc_cesg_poi_search.app.init_db", return_value=None), \
+        # Patch background init to a no-op so the lifespan does not overwrite _conn
+        with patch("poc_cesg_poi_search.app._start_background_initialization", return_value=None), \
              patch("poc_cesg_poi_search.app.close_db", return_value=None), \
              TestClient(app, raise_server_exceptions=False) as c:
             yield c
@@ -88,6 +92,8 @@ def client():
         conn.close()
         db_module._conn = original
         app_module._manifest_cache = original_manifest
+        app_module._db_init_status = original_status
+        app_module._db_init_error = original_error
 
 
 def test_healthz(client):
@@ -96,6 +102,7 @@ def test_healthz(client):
     assert r.json()["status"] == "ok"
     assert r.json()["service"] == "poc-cesg-poi-search"
     assert r.json()["db_ready"] is True
+    assert r.json()["db_init_status"] == "ready"
 
 
 def test_health_alias(client):
@@ -123,10 +130,14 @@ def test_healthz_returns_ng_when_db_unavailable():
 
     original_conn = db_module._conn
     original_manifest = app_module._manifest_cache
+    original_status = app_module._db_init_status
+    original_error = app_module._db_init_error
     db_module._conn = None
     app_module._manifest_cache = {}
+    app_module._db_init_status = "error"
+    app_module._db_init_error = "boom"
     try:
-        with patch("poc_cesg_poi_search.app.init_db", return_value=None), \
+        with patch("poc_cesg_poi_search.app._start_background_initialization", return_value=None), \
              patch("poc_cesg_poi_search.app.close_db", return_value=None), \
              TestClient(app, raise_server_exceptions=False) as client:
             r = client.get("/healthz")
@@ -136,9 +147,45 @@ def test_healthz_returns_ng_when_db_unavailable():
         assert data["status"] == "ng"
         assert data["service"] == "poc-cesg-poi-search"
         assert data["db_ready"] is False
+        assert data["db_init_status"] == "error"
+        assert data["db_init_error"] == "boom"
     finally:
         db_module._conn = original_conn
         app_module._manifest_cache = original_manifest
+        app_module._db_init_status = original_status
+        app_module._db_init_error = original_error
+
+
+def test_healthz_returns_ng_while_initializing():
+    import poc_cesg_poi_search.db as db_module
+    import poc_cesg_poi_search.app as app_module
+    from poc_cesg_poi_search.app import app
+
+    original_conn = db_module._conn
+    original_manifest = app_module._manifest_cache
+    original_status = app_module._db_init_status
+    original_error = app_module._db_init_error
+    db_module._conn = None
+    app_module._manifest_cache = {}
+    app_module._db_init_status = "initializing"
+    app_module._db_init_error = None
+    try:
+        with patch("poc_cesg_poi_search.app._start_background_initialization", return_value=None), \
+             patch("poc_cesg_poi_search.app.close_db", return_value=None), \
+             TestClient(app, raise_server_exceptions=False) as client:
+            r = client.get("/healthz")
+        assert r.status_code == 503
+        data = r.json()
+        assert data["ok"] is False
+        assert data["status"] == "ng"
+        assert data["db_ready"] is False
+        assert data["db_init_status"] == "initializing"
+        assert data["db_init_error"] is None
+    finally:
+        db_module._conn = original_conn
+        app_module._manifest_cache = original_manifest
+        app_module._db_init_status = original_status
+        app_module._db_init_error = original_error
 
 
 def test_search_returns_json(client):

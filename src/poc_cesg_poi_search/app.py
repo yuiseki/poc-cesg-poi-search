@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import logging
+import threading
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -18,6 +19,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _manifest_cache: dict[str, Any] = {}
+_db_init_status = "starting"
+_db_init_error: str | None = None
+_init_thread: threading.Thread | None = None
 
 
 class ORJSONResponse(JSONResponse):
@@ -29,23 +33,7 @@ class ORJSONResponse(JSONResponse):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        init_db(
-            db_path=settings.poi_search_db,
-            asset_url=settings.poi_search_asset_url,
-            local_cache=settings.poi_search_local_cache,
-        )
-    except Exception as e:
-        logger.warning("DuckDB not available at startup: %s — /search and /nearby will return 503", e)
-    # Load manifest if accessible
-    global _manifest_cache
-    try:
-        import httpx
-        r = httpx.get(settings.poi_search_manifest_url, timeout=10)
-        if r.status_code == 200:
-            _manifest_cache = r.json()
-    except Exception as e:
-        logger.warning("Could not load manifest: %s", e)
+    _start_background_initialization()
 
     yield
     close_db()
@@ -89,6 +77,7 @@ def _healthz_payload() -> tuple[dict[str, Any], int]:
             {
                 **_health_payload(),
                 "db_ready": True,
+                "db_init_status": _db_init_status,
                 "manifest_loaded": bool(_manifest_cache),
             },
             200,
@@ -99,10 +88,54 @@ def _healthz_payload() -> tuple[dict[str, Any], int]:
             "status": "ng",
             "service": "poc-cesg-poi-search",
             "db_ready": False,
+            "db_init_status": _db_init_status,
+            "db_init_error": _db_init_error,
             "manifest_loaded": bool(_manifest_cache),
         },
         503,
     )
+
+
+def _load_manifest() -> None:
+    global _manifest_cache
+    try:
+        import httpx
+        r = httpx.get(settings.poi_search_manifest_url, timeout=10)
+        if r.status_code == 200:
+            _manifest_cache = r.json()
+    except Exception as e:
+        logger.warning("Could not load manifest: %s", e)
+
+
+def _initialize_assets() -> None:
+    global _db_init_status, _db_init_error
+    _db_init_status = "initializing"
+    _db_init_error = None
+    try:
+        init_db(
+            db_path=settings.poi_search_db,
+            asset_url=settings.poi_search_asset_url,
+            local_cache=settings.poi_search_local_cache,
+        )
+        _db_init_status = "ready"
+    except Exception as e:
+        _db_init_status = "error"
+        _db_init_error = str(e)
+        logger.warning("DuckDB not available at startup: %s — /search and /nearby will return 503", e)
+    finally:
+        _load_manifest()
+
+
+def _start_background_initialization() -> None:
+    global _init_thread
+    if _init_thread is not None and _init_thread.is_alive():
+        return
+    _init_thread = threading.Thread(
+        target=_initialize_assets,
+        name="poi-search-init",
+        daemon=True,
+    )
+    _init_thread.start()
 
 
 @app.get("/")
